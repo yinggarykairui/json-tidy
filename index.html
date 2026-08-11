@@ -184,6 +184,22 @@
   .v-boolean { color: var(--bool); }
   .v-null { color: var(--null); }
 
+  .copy {
+    flex: 0 0 auto;
+    min-height: 2.5rem;
+    min-width: 4rem;
+    padding: .25rem .5rem;
+    border: 1px solid var(--line);
+    border-radius: .375rem;
+    background: var(--card);
+    color: var(--accent);
+    font: inherit;
+    font-size: .75rem;
+    cursor: pointer;
+  }
+
+  .copy.is-copied { color: var(--str); border-color: var(--str); }
+
   .more {
     padding: .25rem 0 .25rem 2.25rem;
   }
@@ -329,6 +345,83 @@
     render(value);
   }
 
+  /* ---------- jsonpath ---------- */
+
+  var IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+  function uni(code) {
+    var h = code.toString(16).toUpperCase();
+    while (h.length < 4) { h = '0' + h; }
+    return '\\u' + h;
+  }
+
+  function bracketSegment(key) {
+    var out = '';
+    for (var i = 0; i < key.length; i++) {
+      var ch = key.charAt(i);
+      var code = key.charCodeAt(i);
+      if (ch === '\\') {
+        out += '\\\\';
+      } else if (ch === "'") {
+        out += "\\'";
+      } else if (code < 0x20 || code === 0x7F) {
+        out += uni(code);
+      } else if (code >= 0xD800 && code <= 0xDBFF) {
+        var next = key.charCodeAt(i + 1);
+        if (next >= 0xDC00 && next <= 0xDFFF) { out += ch + key.charAt(i + 1); i++; }
+        else { out += uni(code); }
+      } else if (code >= 0xDC00 && code <= 0xDFFF) {
+        out += uni(code);
+      } else {
+        out += ch;
+      }
+    }
+    return "['" + out + "']";
+  }
+
+  function segment(isArray, key, index) {
+    if (isArray) { return '[' + index + ']'; }
+    if (IDENT.test(key)) { return '.' + key; }
+    return bracketSegment(key);
+  }
+
+  /* ---------- copy ---------- */
+
+  function copyFallback(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', 'readonly');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.left = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    var ok = false;
+    try {
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+    } catch (e) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function copyText(text, done) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        navigator.clipboard.writeText(text).then(function () {
+          done(true);
+        }, function () {
+          done(copyFallback(text));
+        });
+        return;
+      } catch (e) { /* fall through */ }
+    }
+    done(copyFallback(text));
+  }
+
   /* ---------- tree ---------- */
 
   var BATCH = 200;
@@ -377,9 +470,10 @@
     return Array.isArray(v) ? v.length : Object.keys(v).length;
   }
 
-  function makeRow(keyLabel, value, depth) {
+  function makeRow(keyLabel, value, depth, path) {
     var row = document.createElement('div');
     row.className = 'row';
+    row.setAttribute('data-path', path);
     row.style.paddingLeft = Math.min(depth, MAX_INDENT) + 'em';
 
     var container = isContainer(value);
@@ -418,15 +512,36 @@
     }
     row.appendChild(content);
 
+    var copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'copy';
+    copy.textContent = 'copy';
+    copy.setAttribute('aria-label', 'Copy path ' + path);
+    copy.addEventListener('click', function () {
+      copyText(path, function (ok) {
+        if (!ok) { return; }
+        if (copy._timer) { clearTimeout(copy._timer); }
+        copy.textContent = 'copied';
+        copy.classList.add('is-copied');
+        copy._timer = setTimeout(function () {
+          copy.textContent = 'copy';
+          copy.classList.remove('is-copied');
+          copy._timer = null;
+        }, 1200);
+      });
+    });
+    row.appendChild(copy);
+
     row._jsonValue = value;
+    row._path = path;
     row._keyLabel = keyLabel;
     row._depth = depth;
     row._chevron = container ? chev : null;
     return row;
   }
 
-  function appendNode(parent, keyLabel, value, depth) {
-    var row = makeRow(keyLabel, value, depth);
+  function appendNode(parent, keyLabel, value, depth, path) {
+    var row = makeRow(keyLabel, value, depth, path);
     parent.appendChild(row);
     if (isContainer(value)) {
       var kids = document.createElement('div');
@@ -454,7 +569,7 @@
     for (var i = row._cursor; i < end; i++) {
       var key = isArr ? String(i) : row._entries[i][0];
       var val = isArr ? v[i] : row._entries[i][1];
-      appendNode(kids, key, val, row._depth + 1);
+      appendNode(kids, key, val, row._depth + 1, row._path + segment(isArr, key, i));
     }
     row._cursor = end;
     row._rendered = true;
@@ -493,9 +608,43 @@
 
   function render(value) {
     tree.textContent = '';
-    var root = appendNode(tree, '$', value, 0);
+    var root = appendNode(tree, '$', value, 0, '$');
     if (isContainer(value)) { toggle(root); }
   }
+
+  /* ---------- sample ---------- */
+
+  var SAMPLE = JSON.stringify({
+    "items": [
+      {
+        "id": 1,
+        "user name": "Ada Lovelace",
+        "email": "ada@example.com",
+        "active": true,
+        "score": 99.5,
+        "tags": ["admin", "beta"],
+        "note": null
+      },
+      {
+        "id": 2,
+        "user name": "Grace Hopper",
+        "email": "grace@example.com",
+        "active": false,
+        "score": 87,
+        "tags": ["ops"],
+        "note": "A deliberately long value so you can see how the tree truncates display text at one hundred and twenty characters while the copied path stays exact."
+      }
+    ],
+    "weird.key": "dots in a key force the bracket form",
+    "it's": "so does an apostrophe",
+    "0": "a numeric-looking key is not an array index",
+    "": "the empty key",
+    "meta": {
+      "generated": "2026-08-11T09:30:00Z",
+      "count": 2,
+      "nested": { "a": { "b": { "c": [1, 2, 3] } } }
+    }
+  }, null, 2);
 
   /* ---------- wiring ---------- */
 
@@ -523,6 +672,10 @@
 
   input.addEventListener('input', scheduleParse);
   document.getElementById('tidy').addEventListener('click', tidyNow);
+  document.getElementById('sample').addEventListener('click', function () {
+    input.value = SAMPLE;
+    tidyNow();
+  });
   document.getElementById('clear').addEventListener('click', function () {
     input.value = '';
     tidyNow();
