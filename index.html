@@ -496,7 +496,7 @@
     content.className = 'content';
     var k = document.createElement('span');
     k.className = 'k';
-    k.textContent = keyLabel;
+    k.textContent = keyLabel === '' ? '""' : keyLabel;
     content.appendChild(k);
     var sep = document.createElement('span');
     sep.className = 'sep';
