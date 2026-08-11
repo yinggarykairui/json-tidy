@@ -177,5 +177,134 @@
 
   <footer>No upload, no server: the JSON never leaves this tab.</footer>
 </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var LARGE_INPUT = 2000000;
+  var DEBOUNCE_MS = 200;
+
+  var input = document.getElementById('input');
+  var message = document.getElementById('message');
+  var hint = document.getElementById('hint');
+  var tree = document.getElementById('tree');
+
+  /* ---------- message region ---------- */
+
+  function clearMessage() {
+    message.textContent = '';
+    message.className = '';
+  }
+
+  function showMessage(text, detail, kind) {
+    message.textContent = '';
+    message.className = kind ? 'is-' + kind : '';
+    message.appendChild(document.createTextNode(text));
+    if (detail) {
+      var d = document.createElement('span');
+      d.className = 'detail';
+      d.textContent = detail;
+      message.appendChild(d);
+    }
+  }
+
+  /* ---------- error text ---------- */
+
+  function lineColFromPosition(text, pos) {
+    if (pos > text.length) { pos = text.length; }
+    var line = 1, lastBreak = -1;
+    for (var i = 0; i < pos; i++) {
+      if (text.charCodeAt(i) === 10) { line++; lastBreak = i; }
+    }
+    return { line: line, column: pos - lastBreak };
+  }
+
+  function describeError(err, text) {
+    var raw = (err && err.message) ? String(err.message) : String(err);
+    var at = /position (\d+)/.exec(raw);
+    var lc = null;
+    if (at) {
+      lc = lineColFromPosition(text, parseInt(at[1], 10));
+    } else {
+      var m = /line (\d+) column (\d+)/i.exec(raw);
+      if (m) { lc = { line: parseInt(m[1], 10), column: parseInt(m[2], 10) }; }
+    }
+    if (lc) {
+      return {
+        text: 'That is not valid JSON — line ' + lc.line + ', column ' + lc.column + '.',
+        detail: raw
+      };
+    }
+    return {
+      text: 'That is not valid JSON. Check for a missing comma, quote, or bracket.',
+      detail: raw
+    };
+  }
+
+  /* ---------- parse ---------- */
+
+  function showHint(show) {
+    hint.style.display = show ? '' : 'none';
+  }
+
+  function parseAndRender(text) {
+    tree.textContent = '';
+    if (!text || !text.trim()) {
+      clearMessage();
+      showHint(true);
+      return;
+    }
+    var value;
+    try {
+      value = JSON.parse(text);
+    } catch (err) {
+      var d = describeError(err, text);
+      showMessage(d.text, d.detail, 'error');
+      showHint(false);
+      return;
+    }
+    clearMessage();
+    showHint(false);
+    render(value);
+  }
+
+  function render() { /* tree rendering lands next */ }
+
+  /* ---------- wiring ---------- */
+
+  var timer = null;
+
+  function scheduleParse() {
+    if (timer !== null) { clearTimeout(timer); }
+    if (input.value.length > LARGE_INPUT) {
+      timer = null;
+      tree.textContent = '';
+      showHint(false);
+      showMessage('Large input — press Tidy to parse.', '', 'note');
+      return;
+    }
+    timer = setTimeout(function () {
+      timer = null;
+      parseAndRender(input.value);
+    }, DEBOUNCE_MS);
+  }
+
+  function tidyNow() {
+    if (timer !== null) { clearTimeout(timer); timer = null; }
+    parseAndRender(input.value);
+  }
+
+  input.addEventListener('input', scheduleParse);
+  document.getElementById('tidy').addEventListener('click', tidyNow);
+  document.getElementById('clear').addEventListener('click', function () {
+    input.value = '';
+    tidyNow();
+    input.focus();
+  });
+
+  parseAndRender(input.value);
+}());
+</script>
 </body>
 </html>
