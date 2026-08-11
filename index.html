@@ -10,8 +10,11 @@
   :root {
     --ink: #1b1f24;
     --muted: #5c6773;
-    /* --line clears 3:1 against --bg, --card and the row hover tint (WCAG 1.4.11) */
+    /* --line is for control boundaries only and clears 3:1 against --bg,
+       --card and the row hover tint (WCAG 1.4.11). Row dividers are not
+       control boundaries, so they use the quieter --row-line. */
     --line: #868c99;
+    --row-line: #d2d9e4;
     --bg: #f7f8fa;
     --card: #ffffff;
     --accent: #2b5bd7;
@@ -148,7 +151,7 @@
     display: flex;
     align-items: flex-start;
     gap: .25rem;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--row-line);
   }
 
   .row, .more {
@@ -159,7 +162,9 @@
     padding-left: calc(min(var(--d, 0), var(--indent-cap)) * var(--indent));
   }
 
-  .row:first-child { border-top: 0; }
+  /* Every row carries a divider except the first one in the tree, so the
+     ruling reads as a grid instead of appearing above arbitrary rows. */
+  #tree > .row:first-child { border-top: 0; }
 
   .row:hover { background: #eef2f7; }
 
