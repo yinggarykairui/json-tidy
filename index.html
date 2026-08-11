@@ -140,6 +140,66 @@
     font-size: .8125rem;
   }
 
+  .row {
+    display: flex;
+    align-items: flex-start;
+    gap: .25rem;
+    border-top: 1px solid #eceff3;
+  }
+
+  .row:first-child { border-top: 0; }
+
+  .chev, .chev-gap {
+    flex: 0 0 auto;
+    width: 2rem;
+    min-height: 2.5rem;
+  }
+
+  .chev {
+    border: 1px solid transparent;
+    border-radius: .25rem;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: .75rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .chev:hover { background: #eef1f6; }
+
+  .content {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: .625rem 0;
+  }
+
+  .k { color: var(--key); font-weight: 600; }
+  .sep { color: var(--muted); }
+  .sum { color: var(--muted); }
+  .v-string { color: var(--str); }
+  .v-number { color: var(--num); }
+  .v-boolean { color: var(--bool); }
+  .v-null { color: var(--null); }
+
+  .more {
+    padding: .25rem 0 .25rem 2.25rem;
+  }
+
+  .more button {
+    min-height: 2.5rem;
+    padding: .5rem .75rem;
+    border: 1px dashed var(--line);
+    border-radius: .375rem;
+    background: var(--card);
+    color: var(--accent);
+    font: inherit;
+    font-size: .8125rem;
+    cursor: pointer;
+  }
+
   footer {
     margin-top: 1.5rem;
     padding-top: .75rem;
@@ -269,7 +329,173 @@
     render(value);
   }
 
-  function render() { /* tree rendering lands next */ }
+  /* ---------- tree ---------- */
+
+  var BATCH = 200;
+  var MAX_INDENT = 10;
+  var STRING_LIMIT = 120;
+
+  function isContainer(v) { return v !== null && typeof v === 'object'; }
+
+  function summaryOf(v) {
+    var n = Array.isArray(v) ? v.length : Object.keys(v).length;
+    return Array.isArray(v)
+      ? '[…] ' + n + (n === 1 ? ' item' : ' items')
+      : '{…} ' + n + (n === 1 ? ' key' : ' keys');
+  }
+
+  function truncate(s) {
+    if (s.length <= STRING_LIMIT) { return s; }
+    var cut = s.slice(0, STRING_LIMIT);
+    var last = cut.charCodeAt(cut.length - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) { cut = cut.slice(0, -1); }
+    return cut + '…';
+  }
+
+  function leafSpan(v) {
+    var span = document.createElement('span');
+    if (v === null) {
+      span.className = 'v-null';
+      span.textContent = 'null';
+    } else if (typeof v === 'string') {
+      span.className = 'v-string';
+      span.textContent = '"' + truncate(v) + '"';
+    } else if (typeof v === 'number') {
+      span.className = 'v-number';
+      span.textContent = String(v);
+    } else if (typeof v === 'boolean') {
+      span.className = 'v-boolean';
+      span.textContent = v ? 'true' : 'false';
+    } else {
+      span.className = 'v-null';
+      span.textContent = String(v);
+    }
+    return span;
+  }
+
+  function childCount(v) {
+    return Array.isArray(v) ? v.length : Object.keys(v).length;
+  }
+
+  function makeRow(keyLabel, value, depth) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.style.paddingLeft = Math.min(depth, MAX_INDENT) + 'em';
+
+    var container = isContainer(value);
+    var chev;
+    if (container) {
+      chev = document.createElement('button');
+      chev.type = 'button';
+      chev.className = 'chev';
+      chev.textContent = '▸';
+      chev.setAttribute('aria-expanded', 'false');
+      chev.setAttribute('aria-label', 'Expand ' + keyLabel);
+    } else {
+      chev = document.createElement('span');
+      chev.className = 'chev-gap';
+      chev.setAttribute('aria-hidden', 'true');
+    }
+    row.appendChild(chev);
+
+    var content = document.createElement('span');
+    content.className = 'content';
+    var k = document.createElement('span');
+    k.className = 'k';
+    k.textContent = keyLabel;
+    content.appendChild(k);
+    var sep = document.createElement('span');
+    sep.className = 'sep';
+    sep.textContent = ': ';
+    content.appendChild(sep);
+    if (container) {
+      var sum = document.createElement('span');
+      sum.className = 'sum';
+      sum.textContent = summaryOf(value);
+      content.appendChild(sum);
+    } else {
+      content.appendChild(leafSpan(value));
+    }
+    row.appendChild(content);
+
+    row._jsonValue = value;
+    row._keyLabel = keyLabel;
+    row._depth = depth;
+    row._chevron = container ? chev : null;
+    return row;
+  }
+
+  function appendNode(parent, keyLabel, value, depth) {
+    var row = makeRow(keyLabel, value, depth);
+    parent.appendChild(row);
+    if (isContainer(value)) {
+      var kids = document.createElement('div');
+      kids.className = 'kids';
+      kids.style.display = 'none';
+      parent.appendChild(kids);
+      row._kids = kids;
+      row._cursor = 0;
+      row._rendered = false;
+      row._expanded = false;
+      row._chevron.addEventListener('click', function () { toggle(row); });
+    }
+    return row;
+  }
+
+  function renderBatch(row) {
+    var v = row._jsonValue;
+    var kids = row._kids;
+    var isArr = Array.isArray(v);
+    if (!row._entries && !isArr) { row._entries = Object.entries(v); }
+    var total = isArr ? v.length : row._entries.length;
+    if (row._more) { kids.removeChild(row._more); row._more = null; }
+
+    var end = Math.min(row._cursor + BATCH, total);
+    for (var i = row._cursor; i < end; i++) {
+      var key = isArr ? String(i) : row._entries[i][0];
+      var val = isArr ? v[i] : row._entries[i][1];
+      appendNode(kids, key, val, row._depth + 1);
+    }
+    row._cursor = end;
+    row._rendered = true;
+
+    var remaining = total - end;
+    if (remaining > 0) {
+      var wrap = document.createElement('div');
+      wrap.className = 'more';
+      wrap.style.paddingLeft = Math.min(row._depth + 1, MAX_INDENT) + 'em';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Show ' + BATCH + ' more (' + remaining + ' remaining)';
+      btn.addEventListener('click', function () { renderBatch(row); });
+      wrap.appendChild(btn);
+      kids.appendChild(wrap);
+      row._more = wrap;
+    }
+  }
+
+  function toggle(row) {
+    if (row._expanded) {
+      row._kids.style.display = 'none';
+      row._expanded = false;
+      row._chevron.textContent = '▸';
+      row._chevron.setAttribute('aria-expanded', 'false');
+      row._chevron.setAttribute('aria-label', 'Expand ' + row._keyLabel);
+      return;
+    }
+    if (!row._rendered) { renderBatch(row); }
+    row._kids.style.display = '';
+    row._expanded = true;
+    row._chevron.textContent = '▾';
+    row._chevron.setAttribute('aria-expanded', 'true');
+    row._chevron.setAttribute('aria-label', 'Collapse ' + row._keyLabel);
+  }
+
+  function render(value) {
+    tree.textContent = '';
+    var root = appendNode(tree, '$', value, 0);
+    if (isContainer(value)) { toggle(root); }
+  }
 
   /* ---------- wiring ---------- */
 
