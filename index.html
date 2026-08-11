@@ -255,7 +255,7 @@
   <main>
     <label class="paste-label" for="input">Paste JSON</label>
     <textarea id="input" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
-      placeholder='{"hello": "world"}'></textarea>
+      autofocus placeholder='{"hello": "world"}'></textarea>
 
     <div class="controls">
       <button type="button" id="tidy" class="primary">Tidy</button>
@@ -473,7 +473,7 @@
       span.textContent = '"' + truncate(v) + '"';
     } else if (typeof v === 'number') {
       span.className = 'v-number';
-      span.textContent = String(v);
+      span.textContent = Object.is(v, -0) ? '-0' : String(v);
     } else if (typeof v === 'boolean') {
       span.className = 'v-boolean';
       span.textContent = v ? 'true' : 'false';
@@ -495,8 +495,11 @@
     row.style.setProperty('--d', String(depth));
 
     var container = isContainer(value);
+    /* An empty object or array has nothing to reveal, so it gets no chevron
+       (a toggle that renders nothing is a dead control). The summary stays. */
+    var openable = container && childCount(value) > 0;
     var chev;
-    if (container) {
+    if (openable) {
       chev = document.createElement('button');
       chev.type = 'button';
       chev.className = 'chev';
@@ -554,14 +557,14 @@
     row._path = path;
     row._keyLabel = keyLabel;
     row._depth = depth;
-    row._chevron = container ? chev : null;
+    row._chevron = openable ? chev : null;
     return row;
   }
 
   function appendNode(parent, keyLabel, value, depth, path, before) {
     var row = makeRow(keyLabel, value, depth, path);
     parent.insertBefore(row, before || null);
-    if (isContainer(value)) {
+    if (row._chevron) {
       var kids = document.createElement('div');
       kids.className = 'kids';
       kids.style.display = 'none';
@@ -644,7 +647,7 @@
   function render(value) {
     tree.textContent = '';
     var root = appendNode(tree, '$', value, 0, '$');
-    if (isContainer(value)) { toggle(root); }
+    if (root._chevron) { toggle(root); }
   }
 
   /* ---------- sample ---------- */
@@ -689,7 +692,6 @@
     if (timer !== null) { clearTimeout(timer); }
     if (input.value.length > LARGE_INPUT) {
       timer = null;
-      tree.textContent = '';
       showHint(false);
       showMessage('Large input — press Tidy to parse.', '', 'note');
       return;
@@ -705,8 +707,16 @@
     parseAndRender(input.value);
   }
 
+  function tidyClicked() {
+    tidyNow();
+    if (!input.value.trim()) {
+      showHint(true);
+      input.focus();
+    }
+  }
+
   input.addEventListener('input', scheduleParse);
-  document.getElementById('tidy').addEventListener('click', tidyNow);
+  document.getElementById('tidy').addEventListener('click', tidyClicked);
   document.getElementById('sample').addEventListener('click', function () {
     input.value = SAMPLE;
     tidyNow();
