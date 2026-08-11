@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>json-tidy</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    --ink: #1b1f24;
+    --muted: #5c6773;
+    --line: #d8dee6;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --accent: #2b5bd7;
+    --danger: #b42318;
+    --note: #8a5a00;
+    --str: #0a7d43;
+    --num: #1f5fbf;
+    --bool: #7a3ecb;
+    --null: #6b7683;
+    --key: #2c3540;
+  }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  .wrap {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 1rem;
+  }
+
+  header h1 {
+    font-size: 1.375rem;
+    margin: 0 0 .25rem;
+    letter-spacing: -0.01em;
+  }
+
+  header p {
+    margin: 0 0 1rem;
+    color: var(--muted);
+    font-size: .9375rem;
+    overflow-wrap: anywhere;
+  }
+
+  label.paste-label {
+    display: block;
+    font-size: .8125rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: .25rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 8.5rem;
+    padding: .625rem;
+    border: 1px solid var(--line);
+    border-radius: .375rem;
+    background: var(--card);
+    color: var(--ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: .875rem;
+    line-height: 1.4;
+    resize: vertical;
+  }
+
+  textarea:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin: .625rem 0 .75rem;
+  }
+
+  .controls button {
+    min-height: 2.5rem;
+    padding: .5rem .875rem;
+    border: 1px solid var(--line);
+    border-radius: .375rem;
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    font-size: .9375rem;
+    cursor: pointer;
+  }
+
+  .controls button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  #message {
+    min-height: 1.5rem;
+    margin: 0 0 .75rem;
+    padding: .125rem 0 .125rem .625rem;
+    border-left: 3px solid transparent;
+    font-size: .9375rem;
+    overflow-wrap: anywhere;
+  }
+
+  #message.is-error { border-left-color: var(--danger); color: var(--danger); }
+  #message.is-note { border-left-color: var(--note); color: var(--note); }
+  #message .detail {
+    display: block;
+    margin-top: .125rem;
+    font-size: .8125rem;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  #hint {
+    color: var(--muted);
+    font-size: .9375rem;
+    padding: .5rem 0 1rem;
+    overflow-wrap: anywhere;
+  }
+
+  #tree {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: .8125rem;
+  }
+
+  footer {
+    margin-top: 1.5rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .8125rem;
+    overflow-wrap: anywhere;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>json-tidy</h1>
+    <p>Paste JSON, get a collapsible tree, copy the JSONPath of any node.</p>
+  </header>
+
+  <main>
+    <label class="paste-label" for="input">Paste JSON</label>
+    <textarea id="input" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+      placeholder='{"hello": "world"}'></textarea>
+
+    <div class="controls">
+      <button type="button" id="tidy" class="primary">Tidy</button>
+      <button type="button" id="sample">Load sample</button>
+      <button type="button" id="clear">Clear</button>
+    </div>
+
+    <div id="message" role="status" aria-live="polite"></div>
+
+    <p id="hint">Paste or type JSON above and the tree shows up here. Objects and arrays open one level at a time.</p>
+
+    <div id="tree"></div>
+  </main>
+
+  <footer>No upload, no server: the JSON never leaves this tab.</footer>
+</div>
+</body>
+</html>
