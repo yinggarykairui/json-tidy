@@ -152,6 +152,10 @@
   }
 
   .row, .more {
+    /* First declaration is the fallback: an engine without min() inside
+       calc() drops only the second line and still indents by depth, at the
+       right scale, instead of collapsing the tree to flat. */
+    padding-left: calc(var(--d, 0) * var(--indent));
     padding-left: calc(min(var(--d, 0), var(--indent-cap)) * var(--indent));
   }
 
@@ -228,10 +232,11 @@
   }
 
   /* Phone width: indentation is the largest consumer of a 288 px content box.
-     Cap it hard so the value column keeps a readable measure at real nesting
-     depths. Depth beyond the cap is still shown by the row's own nesting. */
+     Shrink the step rather than capping the depth -- a cap makes separate
+     nesting levels render identically, which misreports the structure. All
+     ten levels stay distinct at .45em (5.85 px apart). */
   @media (max-width: 30rem) {
-    #tree { --indent: .6em; --indent-cap: 4; }
+    #tree { --indent: .45em; }
     .copy { min-width: 3.5rem; padding-left: .25rem; padding-right: .25rem; }
   }
 
