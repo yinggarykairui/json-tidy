@@ -558,14 +558,14 @@
     return row;
   }
 
-  function appendNode(parent, keyLabel, value, depth, path) {
+  function appendNode(parent, keyLabel, value, depth, path, before) {
     var row = makeRow(keyLabel, value, depth, path);
-    parent.appendChild(row);
+    parent.insertBefore(row, before || null);
     if (isContainer(value)) {
       var kids = document.createElement('div');
       kids.className = 'kids';
       kids.style.display = 'none';
-      parent.appendChild(kids);
+      parent.insertBefore(kids, before || null);
       row._kids = kids;
       row._cursor = 0;
       row._rendered = false;
@@ -581,29 +581,46 @@
     var isArr = Array.isArray(v);
     if (!row._entries && !isArr) { row._entries = Object.entries(v); }
     var total = isArr ? v.length : row._entries.length;
-    if (row._more) { kids.removeChild(row._more); row._more = null; }
 
+    /* The more button is never removed and re-created while batches remain:
+       new rows are inserted before it and its label is updated in place, so
+       keyboard focus stays on the element the user just activated. */
     var end = Math.min(row._cursor + BATCH, total);
+    var first = null;
     for (var i = row._cursor; i < end; i++) {
       var key = isArr ? String(i) : row._entries[i][0];
       var val = isArr ? v[i] : row._entries[i][1];
-      appendNode(kids, key, val, row._depth + 1, row._path + segment(isArr, key, i));
+      var added = appendNode(kids, key, val, row._depth + 1,
+        row._path + segment(isArr, key, i), row._more);
+      if (!first) { first = added; }
     }
     row._cursor = end;
     row._rendered = true;
 
     var remaining = total - end;
     if (remaining > 0) {
-      var wrap = document.createElement('div');
-      wrap.className = 'more';
-      wrap.style.setProperty('--d', String(row._depth + 1));
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = 'Show ' + BATCH + ' more (' + remaining + ' remaining)';
-      btn.addEventListener('click', function () { renderBatch(row); });
-      wrap.appendChild(btn);
-      kids.appendChild(wrap);
-      row._more = wrap;
+      if (!row._more) {
+        var wrap = document.createElement('div');
+        wrap.className = 'more';
+        wrap.style.setProperty('--d', String(row._depth + 1));
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.addEventListener('click', function () { renderBatch(row); });
+        wrap.appendChild(btn);
+        kids.appendChild(wrap);
+        row._more = wrap;
+        row._moreButton = btn;
+      }
+      row._moreButton.textContent = 'Show ' + BATCH + ' more (' + remaining + ' remaining)';
+    } else if (row._more) {
+      var hadFocus = document.activeElement === row._moreButton;
+      kids.removeChild(row._more);
+      row._more = null;
+      row._moreButton = null;
+      if (hadFocus && first) {
+        var next = first.querySelector('.chev') || first.querySelector('.copy');
+        if (next) { next.focus(); }
+      }
     }
   }
 
