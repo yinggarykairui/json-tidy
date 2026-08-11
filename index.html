@@ -166,8 +166,6 @@
      ruling reads as a grid instead of appearing above arbitrary rows. */
   #tree > .row:first-child { border-top: 0; }
 
-  .row:hover { background: #eef2f7; }
-
   .chev, .chev-gap {
     flex: 0 0 auto;
     width: 2.5rem;
@@ -186,7 +184,13 @@
     padding: 0;
   }
 
-  .chev:hover { background: #e0e6f0; }
+
+  /* Hover states only where a pointer can actually hover: on a touch screen
+     :hover sticks to the last tapped row. */
+  @media (hover: hover) {
+    .row:hover { background: #eef2f7; }
+    .chev:hover { background: #e0e6f0; }
+  }
 
   .content {
     flex: 1 1 auto;
