@@ -707,7 +707,11 @@
     if (input.value.length > LARGE_INPUT) {
       timer = null;
       showHint(false);
-      showMessage('Large input — press Tidy to parse.', '', 'note');
+      /* The tree from the last parse is still on screen and is now stale:
+         say so, rather than letting it read as current. */
+      showMessage(tree.firstChild
+        ? 'Large input — press Tidy to parse (showing the previous parse).'
+        : 'Large input — press Tidy to parse.', '', 'note');
       return;
     }
     timer = setTimeout(function () {
