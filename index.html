@@ -12,9 +12,11 @@
     --muted: #5c6773;
     /* --line is for control boundaries only and clears 3:1 against --bg,
        --card and the row hover tint (WCAG 1.4.11). Row dividers are not
-       control boundaries, so they use the quieter --row-line. */
+       control boundaries, so they use the quieter --row-line: 2.11:1 on the
+       row backdrop, 1.99:1 on the hover tint -- enough to draw a grid on a
+       low-contrast display, still visibly quieter than a control edge. */
     --line: #868c99;
-    --row-line: #d2d9e4;
+    --row-line: #a3aebf;
     --bg: #f7f8fa;
     --card: #ffffff;
     --accent: #2b5bd7;
