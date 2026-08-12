@@ -552,6 +552,10 @@
     copy.className = 'copy';
     copy.textContent = 'copy';
     copy.setAttribute('aria-label', 'Copy path ' + path);
+    /* The path is the product. Without a title it exists only in the
+       accessibility tree, so a screen-reader user is told it and a sighted
+       user is not. */
+    copy.title = path;
     copy.addEventListener('click', function () {
       copyText(path, function (ok) {
         if (!ok) { return; }
