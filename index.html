@@ -365,12 +365,53 @@
 
   var ADVICE = 'Check for a missing comma, quote, or bracket.';
 
+  /* The engine says "at position N" for most parse failures, but for the
+     "Unexpected token" family -- a stray comma before a value, a bare word, a
+     tag pasted instead of JSON -- it gives no position at all and quotes a
+     window of the document instead. Recover the offset from that window, and
+     only when it is unambiguous: the quoted text has to appear exactly once in
+     the document, and the character the engine names exactly once inside the
+     window. Anything else and the offset is a guess, so there is none: a caret
+     that confidently lands on the wrong line is worse than a caret that does
+     not move. */
+  var UNEXPECTED = /^Unexpected token (.*?), ([\s\S]*) is not valid JSON$/;
+
+  function recoverPosition(raw, text) {
+    var m = UNEXPECTED.exec(raw);
+    if (!m) { return null; }
+    var token = m[1];
+    if (token.length < 3 || token.charAt(0) !== "'" ||
+        token.charAt(token.length - 1) !== "'") { return null; }
+    token = token.slice(1, -1);
+    var quoted = m[2];
+    /* The leading and trailing ellipses mark where the engine cut the
+       document; what is between the quotes is meant to be verbatim. */
+    if (quoted.slice(0, 3) === '...') { quoted = quoted.slice(3); }
+    if (quoted.slice(-3) === '...') { quoted = quoted.slice(0, -3); }
+    if (quoted.length < 3 || quoted.charAt(0) !== '"' ||
+        quoted.charAt(quoted.length - 1) !== '"') { return null; }
+    var snippet = quoted.slice(1, -1);
+    var start = text.indexOf(snippet);
+    if (start < 0 || start !== text.lastIndexOf(snippet)) { return null; }
+    var at = snippet.indexOf(token);
+    if (at < 0 || at !== snippet.lastIndexOf(token)) { return null; }
+    var pos = start + at;
+    return text.substr(pos, token.length) === token ? pos : null;
+  }
+
   function describeError(err, text) {
     var raw = (err && err.message) ? String(err.message) : String(err);
     var at = /position (\d+)/.exec(raw);
     var lc = null, pos = null;
-    if (at) {
-      pos = parseInt(at[1], 10);
+    if (at) { pos = parseInt(at[1], 10); }
+    /* Read before the recovered offset joins in, so that whether a document
+       counts as merely unfinished still turns on what the engine itself
+       reported -- the amber note is a judgement about the document, not about
+       how well we can point at it. */
+    var incomplete = /unexpected end of (json input|data)/i.test(raw) ||
+      (pos !== null && pos >= text.replace(/\s+$/, '').length);
+    if (pos === null) { pos = recoverPosition(raw, text); }
+    if (pos !== null) {
       lc = lineColFromPosition(text, pos);
     } else {
       var m = /line (\d+) column (\d+)/i.exec(raw);
@@ -380,10 +421,6 @@
        were read out of the engine's own trailing echo, drop the echo and keep
        the diagnostic clause, which is the only part that says what to fix. */
     var detail = lc ? raw.replace(/\s*\(line \d+ column \d+\)\s*$/i, '') : raw;
-    /* The parser stopped at the end of what is there, or ran out of input
-       entirely: the document is unfinished rather than wrong. */
-    var incomplete = /unexpected end of (json input|data)/i.test(raw) ||
-      (pos !== null && pos >= text.replace(/\s+$/, '').length);
     if (lc) {
       return {
         text: 'That is not valid JSON — line ' + lc.line + ', column ' + lc.column + '. ' + ADVICE,
