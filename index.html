@@ -197,6 +197,18 @@
   @media (hover: hover) {
     .row:hover { background: #eef2f7; }
     .chev:hover { background: #e0e6f0; }
+    /* The copy button is the primary control in the tree and was the only
+       interactive element on the page that answered a pointer with nothing. */
+    .copy:hover { background: #e0e6f0; border-color: var(--accent); }
+  }
+
+  /* A colour change the eye can follow, short enough not to lag a click. */
+  @media (prefers-reduced-motion: no-preference) {
+    .row { transition: background-color 120ms ease-out; }
+    .copy, .chev {
+      transition: background-color 120ms ease-out, border-color 120ms ease-out,
+                  color 120ms ease-out;
+    }
   }
 
   .content {
@@ -703,7 +715,9 @@
           copy.textContent = 'copy';
           copy.classList.remove('is-copied');
           copy._timer = null;
-        }, 1200);
+          /* Long enough to still be there when the eye comes back from the
+             editor the path was pasted into. */
+        }, 2000);
       });
     });
     row.appendChild(copy);
