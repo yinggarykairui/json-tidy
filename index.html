@@ -931,13 +931,16 @@
 
   input.addEventListener('input', scheduleParse);
   input.addEventListener('blur', function () {
-    /* Leaving the box ends the benefit of the doubt. Only the message is
-       rewritten -- the tree is not re-rendered, so nothing expanded is lost. */
+    /* Leaving the box ends the benefit of the doubt -- but the cached verdict
+       is up to DEBOUNCE_MS old, and the document may have been finished since,
+       so re-read the box instead of replaying it. Clearing softError first
+       means the hard parse cannot re-enter here. Nothing expanded is lost:
+       a soft error is only ever shown with the tree already emptied. */
     if (!softError) { return; }
-    var d = softError;
     softError = null;
-    showMessage(d.text, d.detail, 'error');
-    showHint(false);
+    /* Over the size limit the tree belongs to Tidy, not to a blur. */
+    if (input.value.length > LARGE_INPUT) { return; }
+    tidyNow();
   });
   document.getElementById('tidy').addEventListener('click', tidyClicked);
   document.getElementById('sample').addEventListener('click', function () {
