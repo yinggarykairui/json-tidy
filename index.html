@@ -196,6 +196,10 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow-wrap: anywhere;
+    /* Runs of spaces inside a key or a value are meaningful -- collapsing
+       them made "a b" and "a  b" render as the same row. Escaped text has no
+       newlines or tabs left in it, so pre-wrap only preserves the spaces. */
+    white-space: pre-wrap;
     padding: .625rem 0;
   }
 
@@ -418,6 +422,49 @@
     return bracketSegment(key);
   }
 
+  /* ---------- display escaping ---------- */
+
+  var ESC_SHORT = { 8: '\\b', 9: '\\t', 10: '\\n', 12: '\\f', 13: '\\r' };
+
+  /* Displayed keys and string values are written the way JSON writes them, so
+     that two nodes differing only by whitespace, a quote or an invisible
+     direction mark read as two different nodes. Paths are built separately by
+     segment()/bracketSegment() and are deliberately untouched. */
+  function escapeDisplay(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      var code = s.charCodeAt(i);
+      if (ch === '\\') {
+        out += '\\\\';
+      } else if (ch === '"') {
+        out += '\\"';
+      } else if (ESC_SHORT[code]) {
+        out += ESC_SHORT[code];
+      } else if (code < 0x20 || code === 0x7F) {
+        out += uni(code);
+      } else if ((code >= 0x200E && code <= 0x200F) ||
+                 (code >= 0x202A && code <= 0x202E) ||
+                 (code >= 0x2066 && code <= 0x2069) ||
+                 code === 0x2028 || code === 0x2029) {
+        /* Bidi controls and line separators. An override inside a span
+           reverses the glyphs that follow it, including glyphs belonging to
+           the next span, so a key can rewrite its own row's value backwards.
+           unicode-bidi: isolate does not undo an override; escaping does. */
+        out += uni(code);
+      } else if (code >= 0xD800 && code <= 0xDBFF) {
+        var next = s.charCodeAt(i + 1);
+        if (next >= 0xDC00 && next <= 0xDFFF) { out += ch + s.charAt(i + 1); i++; }
+        else { out += uni(code); }
+      } else if (code >= 0xDC00 && code <= 0xDFFF) {
+        out += uni(code);
+      } else {
+        out += ch;
+      }
+    }
+    return out;
+  }
+
   /* ---------- copy ---------- */
 
   function copyFallback(text) {
@@ -484,7 +531,7 @@
       span.textContent = 'null';
     } else if (typeof v === 'string') {
       span.className = 'v-string';
-      span.textContent = '"' + truncate(v) + '"';
+      span.textContent = '"' + escapeDisplay(truncate(v)) + '"';
     } else if (typeof v === 'number') {
       span.className = 'v-number';
       span.textContent = Object.is(v, -0) ? '-0' : String(v);
@@ -519,7 +566,7 @@
       chev.className = 'chev';
       chev.textContent = '▸';
       chev.setAttribute('aria-expanded', 'false');
-      chev.setAttribute('aria-label', 'Expand ' + keyLabel);
+      chev.setAttribute('aria-label', 'Expand ' + escapeDisplay(keyLabel));
     } else {
       chev = document.createElement('span');
       chev.className = 'chev-gap';
@@ -531,7 +578,7 @@
     content.className = 'content';
     var k = document.createElement('span');
     k.className = 'k';
-    k.textContent = keyLabel === '' ? '""' : keyLabel;
+    k.textContent = keyLabel === '' ? '""' : escapeDisplay(keyLabel);
     content.appendChild(k);
     var sep = document.createElement('span');
     sep.className = 'sep';
@@ -651,7 +698,7 @@
       row._expanded = false;
       row._chevron.textContent = '▸';
       row._chevron.setAttribute('aria-expanded', 'false');
-      row._chevron.setAttribute('aria-label', 'Expand ' + row._keyLabel);
+      row._chevron.setAttribute('aria-label', 'Expand ' + escapeDisplay(row._keyLabel));
       return;
     }
     if (!row._rendered) { renderBatch(row); }
@@ -659,7 +706,7 @@
     row._expanded = true;
     row._chevron.textContent = '▾';
     row._chevron.setAttribute('aria-expanded', 'true');
-    row._chevron.setAttribute('aria-label', 'Collapse ' + row._keyLabel);
+    row._chevron.setAttribute('aria-label', 'Collapse ' + escapeDisplay(row._keyLabel));
   }
 
   function render(value) {
