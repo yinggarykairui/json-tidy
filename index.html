@@ -172,6 +172,13 @@
     min-height: 2.5rem;
   }
 
+  /* Chrome for the controls, not text: dragging across the tree to paste it
+     into a ticket used to pick up every "copy" label and chevron glyph. */
+  .copy, .chev {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   .chev {
     border: 1px solid transparent;
     border-radius: .25rem;
