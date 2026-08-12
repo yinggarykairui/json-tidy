@@ -202,6 +202,11 @@
     /* The copy button is the primary control in the tree and was the only
        interactive element on the page that answered a pointer with nothing. */
     .copy:hover { background: #e0e6f0; border-color: var(--accent); }
+    /* Once it has been pressed, the button keeps white ground: the copied
+       green measures 4.16:1 on the hover tint and 5.21:1 on white, and this
+       is the state the pointer is most often sitting on. The green label and
+       border are already a louder answer than a tint. */
+    .copy.is-copied:hover { background: var(--card); }
   }
 
   /* A colour change the eye can follow, short enough not to lag a click. */
