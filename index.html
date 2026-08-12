@@ -468,9 +468,21 @@
   /* ---------- copy ---------- */
 
   function copyFallback(text) {
+    /* The temporary textarea steals focus and clears the document selection.
+       On file:// this branch is the only one that runs, so without putting
+       both back a copy costs the user their place in the tab order and any
+       text they had highlighted. */
+    var wasFocused = document.activeElement;
+    var sel = window.getSelection ? window.getSelection() : null;
+    var ranges = [];
+    if (sel) {
+      for (var r = 0; r < sel.rangeCount; r++) { ranges.push(sel.getRangeAt(r)); }
+    }
+
     var ta = document.createElement('textarea');
     ta.value = text;
     ta.setAttribute('readonly', 'readonly');
+    ta.setAttribute('aria-hidden', 'true');
     ta.style.position = 'fixed';
     ta.style.top = '-1000px';
     ta.style.left = '-1000px';
@@ -485,6 +497,16 @@
       ok = false;
     }
     document.body.removeChild(ta);
+
+    if (sel) {
+      sel.removeAllRanges();
+      for (var j = 0; j < ranges.length; j++) {
+        try { sel.addRange(ranges[j]); } catch (e2) { /* range no longer valid */ }
+      }
+    }
+    if (wasFocused && wasFocused !== document.body && typeof wasFocused.focus === 'function') {
+      try { wasFocused.focus({ preventScroll: true }); } catch (e3) { wasFocused.focus(); }
+    }
     return ok;
   }
 
@@ -617,7 +639,13 @@
     copy.title = path;
     copy.addEventListener('click', function () {
       copyText(path, function (ok) {
-        if (!ok) { return; }
+        if (!ok) {
+          /* A copy that fails silently is indistinguishable from a click that
+             never registered. Say so, and say the path, so it can be selected
+             by hand. */
+          showMessage('Could not reach the clipboard. The path is ' + path, '', 'note');
+          return;
+        }
         if (copy._timer) { clearTimeout(copy._timer); }
         copy.textContent = 'copied';
         copy.classList.add('is-copied');
