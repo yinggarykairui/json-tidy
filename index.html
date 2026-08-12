@@ -531,10 +531,22 @@
       span.textContent = 'null';
     } else if (typeof v === 'string') {
       span.className = 'v-string';
-      span.textContent = '"' + escapeDisplay(truncate(v)) + '"';
+      var shown = truncate(v);
+      span.textContent = '"' + escapeDisplay(shown) + '"';
+      /* Only when the display actually cut something: a title on every value
+         would fire a tooltip that repeats what is already on screen. */
+      if (shown !== v) { span.title = escapeDisplay(v); }
     } else if (typeof v === 'number') {
-      span.className = 'v-number';
-      span.textContent = Object.is(v, -0) ? '-0' : String(v);
+      if (isFinite(v)) {
+        span.className = 'v-number';
+        span.textContent = Object.is(v, -0) ? '-0' : String(v);
+      } else {
+        /* JSON has no Infinity. 1e400 parses to Infinity, and printing that
+           in number style asserts a value the source never held -- and the
+           text it prints is not itself valid JSON. Annotate instead. */
+        span.className = 'v-null';
+        span.textContent = String(v) + ' (outside the JSON number range)';
+      }
     } else if (typeof v === 'boolean') {
       span.className = 'v-boolean';
       span.textContent = v ? 'true' : 'false';
