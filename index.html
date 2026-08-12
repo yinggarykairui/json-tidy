@@ -265,10 +265,14 @@
     cursor: pointer;
   }
 
-  /* Phone width: indentation is the largest consumer of a 288 px content box.
-     Shrink the step rather than capping the depth -- a cap makes separate
-     nesting levels render identically, which misreports the structure. All
-     ten levels stay distinct at .45em (5.85 px apart). */
+  /* Phone width: indentation is the largest consumer of a 288 px content box,
+     so the step shrinks from 1em to .45em (5.85 px per level here, 13 px at
+     desktop width). That is on top of --indent-cap, not instead of it: the
+     cap buys a bounded indent budget -- 58.5 px at 320, 130 px at 1280, so
+     the content box never gets squeezed into a horizontal scroll -- and pays
+     for it by rendering depth 10 and everything below it at the same offset
+     (17 depths, 11 distinct positions). Depth 1-10 stay distinct; past that,
+     the chevrons and the summaries carry the structure, not the indent. */
   @media (max-width: 30rem) {
     #tree { --indent: .45em; }
     .copy { min-width: 3.5rem; padding-left: .25rem; padding-right: .25rem; }
