@@ -499,6 +499,13 @@
 
   var ESC_SHORT = { 8: '\\b', 9: '\\t', 10: '\\n', 12: '\\f', 13: '\\r' };
 
+  function isBidiControl(code) {
+    return (code >= 0x200E && code <= 0x200F) ||
+           (code >= 0x202A && code <= 0x202E) ||
+           (code >= 0x2066 && code <= 0x2069) ||
+           code === 0x2028 || code === 0x2029;
+  }
+
   /* Displayed keys and string values are written the way JSON writes them, so
      that two nodes differing only by whitespace, a quote or an invisible
      direction mark read as two different nodes. Paths are built separately by
@@ -516,10 +523,7 @@
         out += ESC_SHORT[code];
       } else if (code < 0x20 || code === 0x7F) {
         out += uni(code);
-      } else if ((code >= 0x200E && code <= 0x200F) ||
-                 (code >= 0x202A && code <= 0x202E) ||
-                 (code >= 0x2066 && code <= 0x2069) ||
-                 code === 0x2028 || code === 0x2029) {
+      } else if (isBidiControl(code)) {
         /* Bidi controls and line separators. An override inside a span
            reverses the glyphs that follow it, including glyphs belonging to
            the next span, so a key can rewrite its own row's value backwards.
@@ -534,6 +538,24 @@
       } else {
         out += ch;
       }
+    }
+    return out;
+  }
+
+  /* A path is not display text and must not go through escapeDisplay: it is
+     already escaped for JSONPath, so escaping it again doubles the backslash
+     bracketSegment wrote and shows a path that no longer resolves. Everything
+     bracketSegment leaves raw is already safe to render except a bidi control,
+     which reverses the glyphs after it -- so escape exactly those, and only
+     where the path is shown to a human. The clipboard string and data-path
+     stay raw so they keep resolving; aria-label is escaped with the rest,
+     because nothing resolves a label and two paths differing only by an
+     invisible override would otherwise be announced as the same path. */
+  function escapePathForDisplay(p) {
+    var out = '';
+    for (var i = 0; i < p.length; i++) {
+      var code = p.charCodeAt(i);
+      out += isBidiControl(code) ? uni(code) : p.charAt(i);
     }
     return out;
   }
@@ -705,18 +727,19 @@
     copy.type = 'button';
     copy.className = 'copy';
     copy.textContent = 'copy';
-    copy.setAttribute('aria-label', 'Copy path ' + path);
+    copy.setAttribute('aria-label', 'Copy path ' + escapePathForDisplay(path));
     /* The path is the product. Without a title it exists only in the
        accessibility tree, so a screen-reader user is told it and a sighted
        user is not. */
-    copy.title = path;
+    copy.title = escapePathForDisplay(path);
     copy.addEventListener('click', function () {
       copyText(path, function (ok) {
         if (!ok) {
           /* A copy that fails silently is indistinguishable from a click that
              never registered. Say so, and say the path, so it can be selected
              by hand. */
-          showMessage('Could not reach the clipboard. The path is ' + path, '', 'note');
+          showMessage('Could not reach the clipboard. The path is ' +
+            escapePathForDisplay(path), '', 'note');
           return;
         }
         if (copy._timer) { clearTimeout(copy._timer); }
