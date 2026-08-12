@@ -683,7 +683,7 @@
     return row;
   }
 
-  function renderBatch(row) {
+  function renderBatch(row, fromButton) {
     var v = row._jsonValue;
     var kids = row._kids;
     var isArr = Array.isArray(v);
@@ -713,7 +713,7 @@
         wrap.style.setProperty('--d', String(row._depth + 1));
         var btn = document.createElement('button');
         btn.type = 'button';
-        btn.addEventListener('click', function () { renderBatch(row); });
+        btn.addEventListener('click', function () { renderBatch(row, true); });
         wrap.appendChild(btn);
         kids.appendChild(wrap);
         row._more = wrap;
@@ -723,6 +723,10 @@
          promising 200 and delivering 101 makes the label a lie. */
       row._moreButton.textContent = 'Show ' + Math.min(BATCH, remaining) +
         ' more (' + remaining + ' remaining)';
+      /* The button keeps focus but the rows just inserted above it push it a
+         full batch down the document, so without this the user is left
+         pressing a control that is no longer on screen. */
+      if (fromButton) { row._more.scrollIntoView({ block: 'nearest' }); }
     } else if (row._more) {
       var hadFocus = document.activeElement === row._moreButton;
       kids.removeChild(row._more);
