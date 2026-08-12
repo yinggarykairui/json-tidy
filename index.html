@@ -719,7 +719,10 @@
         row._more = wrap;
         row._moreButton = btn;
       }
-      row._moreButton.textContent = 'Show ' + BATCH + ' more (' + remaining + ' remaining)';
+      /* The last press of the button adds what is left, not a full batch --
+         promising 200 and delivering 101 makes the label a lie. */
+      row._moreButton.textContent = 'Show ' + Math.min(BATCH, remaining) +
+        ' more (' + remaining + ' remaining)';
     } else if (row._more) {
       var hadFocus = document.activeElement === row._moreButton;
       kids.removeChild(row._more);
