@@ -333,25 +333,40 @@
     return { line: line, column: pos - lastBreak };
   }
 
+  var ADVICE = 'Check for a missing comma, quote, or bracket.';
+
   function describeError(err, text) {
     var raw = (err && err.message) ? String(err.message) : String(err);
     var at = /position (\d+)/.exec(raw);
-    var lc = null;
+    var lc = null, pos = null;
     if (at) {
-      lc = lineColFromPosition(text, parseInt(at[1], 10));
+      pos = parseInt(at[1], 10);
+      lc = lineColFromPosition(text, pos);
     } else {
       var m = /line (\d+) column (\d+)/i.exec(raw);
       if (m) { lc = { line: parseInt(m[1], 10), column: parseInt(m[2], 10) }; }
     }
+    /* The sentence above already says the line and the column. Where they
+       were read out of the engine's own trailing echo, drop the echo and keep
+       the diagnostic clause, which is the only part that says what to fix. */
+    var detail = lc ? raw.replace(/\s*\(line \d+ column \d+\)\s*$/i, '') : raw;
+    /* The parser stopped at the end of what is there, or ran out of input
+       entirely: the document is unfinished rather than wrong. */
+    var incomplete = /unexpected end of (json input|data)/i.test(raw) ||
+      (pos !== null && pos >= text.replace(/\s+$/, '').length);
     if (lc) {
       return {
-        text: 'That is not valid JSON — line ' + lc.line + ', column ' + lc.column + '.',
-        detail: raw
+        text: 'That is not valid JSON — line ' + lc.line + ', column ' + lc.column + '. ' + ADVICE,
+        detail: detail,
+        pos: pos,
+        incomplete: incomplete
       };
     }
     return {
-      text: 'That is not valid JSON. Check for a missing comma, quote, or bracket.',
-      detail: raw
+      text: 'That is not valid JSON. ' + ADVICE,
+      detail: detail,
+      pos: pos,
+      incomplete: incomplete
     };
   }
 
@@ -361,9 +376,15 @@
     hint.style.display = show ? '' : 'none';
   }
 
-  function parseAndRender(text) {
+  /* An error that is only being held back because the user is mid-word. It is
+     shown in full the moment they leave the box or press Tidy. */
+  var softError = null;
+
+  function parseAndRender(text, opts) {
+    opts = opts || {};
     tree.textContent = '';
     if (!text || !text.trim()) {
+      softError = null;
       clearMessage();
       showHint(true);
       return;
@@ -373,10 +394,32 @@
       value = JSON.parse(text);
     } catch (err) {
       var d = describeError(err, text);
+      if (!opts.hard && d.incomplete && document.activeElement === input) {
+        /* Typing a document produces a parse error on nearly every keystroke.
+           Painting that red, and hiding the page's only instruction while it
+           is up, punishes the user for not having finished yet. */
+        softError = d;
+        showMessage('Not valid JSON yet — the document looks unfinished.', '', 'note');
+        showHint(true);
+        return;
+      }
+      softError = null;
       showMessage(d.text, d.detail, 'error');
       showHint(false);
+      if (opts.seekPosition && d.pos !== null) {
+        /* The box shows about seven of the lines it holds, pinned to the end.
+           Put the caret where the parser stopped. Chromium scrolls to the
+           selection when the box takes focus, not when the selection moves,
+           so the caret has to be placed before the focus call. */
+        try {
+          input.blur();
+          input.setSelectionRange(d.pos, d.pos);
+          input.focus();
+        } catch (e) { /* older engines: no caret control, no harm */ }
+      }
       return;
     }
+    softError = null;
     clearMessage();
     showHint(false);
     render(value);
@@ -818,13 +861,13 @@
     }, DEBOUNCE_MS);
   }
 
-  function tidyNow() {
+  function tidyNow(opts) {
     if (timer !== null) { clearTimeout(timer); timer = null; }
-    parseAndRender(input.value);
+    parseAndRender(input.value, opts || { hard: true });
   }
 
   function tidyClicked() {
-    tidyNow();
+    tidyNow({ hard: true, seekPosition: true });
     if (!input.value.trim()) {
       showHint(true);
       input.focus();
@@ -832,6 +875,15 @@
   }
 
   input.addEventListener('input', scheduleParse);
+  input.addEventListener('blur', function () {
+    /* Leaving the box ends the benefit of the doubt. Only the message is
+       rewritten -- the tree is not re-rendered, so nothing expanded is lost. */
+    if (!softError) { return; }
+    var d = softError;
+    softError = null;
+    showMessage(d.text, d.detail, 'error');
+    showHint(false);
+  });
   document.getElementById('tidy').addEventListener('click', tidyClicked);
   document.getElementById('sample').addEventListener('click', function () {
     input.value = SAMPLE;
