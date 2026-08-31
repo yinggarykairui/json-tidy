@@ -232,11 +232,6 @@
     padding: .625rem 0;
   }
 
-  /* A row with a chevron is a row that opens, and its label is the biggest
-     thing on it: the adjacent-sibling selector picks out exactly those rows,
-     since a row without children carries a .chev-gap span instead. */
-  .chev + .content { cursor: pointer; }
-
   .k { color: var(--key); font-weight: 600; }
   .sep { color: var(--muted); }
   .sum { color: var(--muted); }
@@ -1007,32 +1002,6 @@
       content.appendChild(sum);
     } else {
       content.appendChild(leafSpan(value));
-    }
-    if (openable) {
-      /* The chevron is a 40 px target next to a label several times its
-         width, and the label looked like part of the same control. Clicking
-         it now does what the chevron does -- unless the click is part of a
-         gesture that means something else.
-
-         A drag across the value is one such gesture, and the collapsed check
-         catches it. Double-clicking a key to select the word is the other,
-         and no check on the click alone can catch it: the first click of the
-         pair fires while the selection is still collapsed, so it toggles,
-         and only the second click can be recognised as part of a pair. So
-         the second click is ignored (detail is the click count: 2 there, 1
-         on every deliberate single click) and the dblclick that follows puts
-         the first click's toggle back, leaving the row as it was and the
-         word selected. */
-      var toggledByClick = false;
-      content.addEventListener('click', function (event) {
-        if (event.detail > 1) { return; }
-        var sel = window.getSelection ? window.getSelection() : null;
-        if (sel && !sel.isCollapsed) { toggledByClick = false; return; }
-        if (row._kids) { toggle(row); toggledByClick = true; }
-      });
-      content.addEventListener('dblclick', function () {
-        if (toggledByClick) { toggle(row); toggledByClick = false; }
-      });
     }
     row.appendChild(content);
 
