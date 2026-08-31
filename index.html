@@ -597,6 +597,13 @@
      shown in full the moment they leave the box or press Tidy. */
   var softError = null;
 
+  /* Moving the caret to the parse error would collapse a selection the user
+     made on purpose, in the box, to replace or delete. */
+  function hasSelection() {
+    try { return input.selectionEnd > input.selectionStart; }
+    catch (e) { return false; }
+  }
+
   function parseAndRender(text, opts) {
     opts = opts || {};
     if (!text || !text.trim()) {
@@ -638,7 +645,7 @@
       softError = null;
       showMessage(d.text, d.detail, 'error');
       showHint(false);
-      if (opts.seekPosition && d.pos !== null) {
+      if (opts.seekPosition && d.pos !== null && !hasSelection()) {
         /* The box shows about seven of the lines it holds, pinned to the end.
            Put the caret where the parser stopped. Chromium scrolls to the
            selection when the box takes focus, not when the selection moves,
@@ -857,6 +864,18 @@
     return cut + '…';
   }
 
+  /* A tooltip is not a document viewer: the full text of a 400 kB string is
+     an attribute nobody can read and every serialisation has to carry. */
+  var TITLE_LIMIT = 2000;
+
+  function capTitle(s) {
+    if (s.length <= TITLE_LIMIT) { return s; }
+    var cut = s.slice(0, TITLE_LIMIT);
+    var last = cut.charCodeAt(cut.length - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) { cut = cut.slice(0, -1); }
+    return cut + '\u2026';
+  }
+
   function leafSpan(v) {
     var span = document.createElement('span');
     if (v === null) {
@@ -868,7 +887,7 @@
       span.textContent = '"' + escapeDisplay(shown) + '"';
       /* Only when the display actually cut something: a title on every value
          would fire a tooltip that repeats what is already on screen. */
-      if (shown !== v) { span.title = escapeDisplay(v); }
+      if (shown !== v) { span.title = capTitle(escapeDisplay(v)); }
     } else if (typeof v === 'number') {
       if (isFinite(v)) {
         span.className = 'v-number';
@@ -967,6 +986,10 @@
              by hand. */
           showMessage('Could not reach the clipboard. The path is ' +
             escapePathForDisplay(path), '', 'note');
+          /* The message region sits above a tree that can be thousands of
+             rows tall, so on a deep row it is otherwise reported far off the
+             top of the viewport, and the user is told nothing. */
+          message.scrollIntoView({ block: 'nearest' });
           return;
         }
         if (copy._timer) { clearTimeout(copy._timer); }
