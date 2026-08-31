@@ -209,7 +209,7 @@
        green measures 4.16:1 on the hover tint and 5.21:1 on white, and this
        is the state the pointer is most often sitting on. The green label and
        border are already a louder answer than a tint. */
-    .copy.is-copied:hover { background: var(--card); }
+    .copy.is-copied:hover, .copy.is-failed:hover { background: var(--card); }
   }
 
   /* A colour change the eye can follow, short enough not to lag a click. */
@@ -260,6 +260,9 @@
   }
 
   .copy.is-copied { color: var(--str); border-color: var(--str); }
+  /* A failure that keeps the resting blue is a failure nobody sees; the word
+     alone was the only difference between "copy" and "failed". */
+  .copy.is-failed { color: var(--danger); border-color: var(--danger); }
 
   .more {
     padding-top: .25rem;
@@ -1037,7 +1040,8 @@
     copy.type = 'button';
     copy.className = 'copy';
     copy.textContent = 'copy';
-    copy.setAttribute('aria-label', 'Copy path ' + escapePathForDisplay(path));
+    var copyLabel = 'Copy path ' + escapePathForDisplay(path);
+    copy.setAttribute('aria-label', copyLabel);
     /* The path is the product. Without a title it exists only in the
        accessibility tree, so a screen-reader user is told it and a sighted
        user is not. */
@@ -1057,13 +1061,27 @@
           showMessage('Could not reach the clipboard. The path is ' +
             escapePathForDisplay(path), '', 'note');
           copy.textContent = 'failed';
+          /* A failure inside the two seconds after a success used to say
+             "failed" in the success green. The button carries one state at a
+             time, so the other class goes. */
+          copy.classList.remove('is-copied');
+          copy.classList.add('is-failed');
+          /* The word on the button is not in the accessible name, so a
+             screen reader on the button itself heard "Copy path ..." and
+             nothing about the failure. */
+          copy.setAttribute('aria-label', 'Copy failed for path ' +
+            escapePathForDisplay(path));
         } else {
           copy.textContent = 'copied';
+          copy.classList.remove('is-failed');
           copy.classList.add('is-copied');
+          copy.setAttribute('aria-label', copyLabel);
         }
         copy._timer = setTimeout(function () {
           copy.textContent = 'copy';
           copy.classList.remove('is-copied');
+          copy.classList.remove('is-failed');
+          copy.setAttribute('aria-label', copyLabel);
           copy._timer = null;
           /* Long enough to still be there when the eye comes back from the
              editor the path was pasted into. */
