@@ -1261,9 +1261,10 @@
   function tidyClicked() {
     tidyNow({ hard: true, seekPosition: true });
     if (!input.value.trim()) {
-      /* An empty box parses to nothing, so without this a deliberate press
-         is answered with silence -- and the user presses it again. */
-      showMessage('Nothing to tidy — the box is empty.');
+      /* Nothing to say about an empty box: the placeholder in it already
+         shows what JSON looks like, and a line reading "the box is empty"
+         under it contradicts what the reader can see. Put the caret where
+         the work starts instead. */
       showHint(true);
       input.focus();
     }
