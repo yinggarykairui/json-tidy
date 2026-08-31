@@ -455,9 +455,10 @@
      documents different, and must never call two differing documents
      identical.
 
-     Tier 1 is text identity: identical trimmed text parses to an identical
-     value, so one string compare settles it, and that compare is what catches
-     a stray keystroke or a second press of Tidy.
+     Tier 1 is text identity: two documents that differ only in the
+     whitespace JSON itself allows around them parse to the same value, so
+     one string compare settles it, and that compare is what catches a stray
+     keystroke or a second press of Tidy.
 
      Tier 2 is value equivalence. The tree is a pure function of the parsed
      value and Object.entries order is exactly JSON.stringify order, so equal
@@ -607,8 +608,20 @@
     return lastText !== null && !!tree.firstChild;
   }
 
+  /* JSON allows exactly four whitespace characters around a document; the
+     Unicode set String.trim() strips is much larger. Trimming with trim()
+     made a document ending in a no-break space, a BOM or an ideographic
+     space compare equal to the last good one, so input the parser rejects
+     was answered with the previous tree and no error at all. Only these
+     four characters may be ignored here. */
+  var JSON_WS = /^[ \t\n\r]+|[ \t\n\r]+$/g;
+
+  function jsonTrim(text) {
+    return text.replace(JSON_WS, '');
+  }
+
   function sameText(text) {
-    return alreadyRendered() && text.trim() === lastText.trim();
+    return alreadyRendered() && jsonTrim(text) === jsonTrim(lastText);
   }
 
   function sameValue(text, canon) {
