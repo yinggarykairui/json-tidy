@@ -1029,21 +1029,23 @@
     copy.title = escapePathForDisplay(path);
     copy.addEventListener('click', function () {
       copyText(path, function (ok) {
+        if (copy._timer) { clearTimeout(copy._timer); }
         if (!ok) {
           /* A copy that fails silently is indistinguishable from a click that
-             never registered. Say so, and say the path, so it can be selected
-             by hand. */
+             never registered. The button the user just pressed is where their
+             eyes already are, so the failure is said on the button; #message
+             still carries the path in text, so it can be selected by hand and
+             is announced to a screen reader. The message region sits above a
+             tree thousands of rows tall, and scrolling it into view would
+             throw a user who is deep in that tree back to the top of the page
+             with no way back to the row they clicked. */
           showMessage('Could not reach the clipboard. The path is ' +
             escapePathForDisplay(path), '', 'note');
-          /* The message region sits above a tree that can be thousands of
-             rows tall, so on a deep row it is otherwise reported far off the
-             top of the viewport, and the user is told nothing. */
-          message.scrollIntoView({ block: 'nearest' });
-          return;
+          copy.textContent = 'failed';
+        } else {
+          copy.textContent = 'copied';
+          copy.classList.add('is-copied');
         }
-        if (copy._timer) { clearTimeout(copy._timer); }
-        copy.textContent = 'copied';
-        copy.classList.add('is-copied');
         copy._timer = setTimeout(function () {
           copy.textContent = 'copy';
           copy.classList.remove('is-copied');
