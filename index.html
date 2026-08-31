@@ -473,7 +473,11 @@
   var lastCanon = null;
   var RISKY = /-0|\d[eE]|\d{15}/;
 
-  var UNCHANGED = 'Nothing changed \u2014 the tree is already up to date.';
+  /* Says only what is true of the two things in front of the reader. The
+     debounce has usually rebuilt the tree already, so by the time Tidy is
+     pressed the document may well have changed a moment ago -- a line
+     claiming nothing changed would be talking about the wrong moment. */
+  var UNCHANGED = 'The tree already matches the box.';
 
   function canonical(value) {
     try { return JSON.stringify(value); } catch (e) { return null; }
