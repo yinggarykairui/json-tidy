@@ -8,11 +8,7 @@ Paste JSON, get a collapsible tree, and copy the JSONPath of any node with one c
 
 ## What it does
 
-Paste or type JSON into the box and a tree appears below it, up to two million characters; past that it waits for the Tidy button. The root opens one level, and below that a chevron opens each container that has children, 200 at a time — clicking the row's own label does the same thing as the chevron. Every row has a copy button that puts that node's JSONPath on the clipboard — a dot for plain keys, quoted brackets for anything else, so `$.items[0]['user name']` comes out correct.
-
-Editing the document does not throw your place away. A change that cannot alter the tree — a stray space, or a second press of Tidy — leaves the tree alone, and Tidy says so. A real edit rebuilds the tree and then puts back every node you had expanded that still exists, how many batches of 200 you had opened under each one, and roughly where you were scrolled; Tidy reports how many of them survived. Expanded nodes also survive a document that is briefly invalid while you fix it.
-
-Bad input gets a plain-language line under the box, with the parser's own message under that; while you are still typing, an unfinished document says only that it looks unfinished. Numbers go through `JSON.parse`, so a large integer id can change on the way in: `9007199254740993` shows as `9007199254740992`.
+Paste or type JSON into the box and a collapsible tree appears below it, up to two million characters; past that it waits for the Tidy button. The root opens one level, and below that a chevron — or the row's own label — opens each container that has children, 200 at a time, while every row carries a copy button for that node's JSONPath: a dot for plain keys, quoted brackets for anything else, so `$.items[0]['user name']` comes out correct. Editing does not throw your place away — a change that cannot alter the tree leaves the tree alone, and a real edit, or a document that is briefly invalid while you fix it, rebuilds the tree and puts every node back the way you left it, open or closed, with the batches you had opened under each one and roughly where you were scrolled. Tidy says when nothing changed and reports how many of the nodes you opened survived a rebuild; Load sample and Clear always start over from scratch. Bad input gets a plain-language line under the box with the parser's own message under that, and numbers go through `JSON.parse`, so a large integer id can change on the way in: `9007199254740993` shows as `9007199254740992`.
 
 ## How to run
 
