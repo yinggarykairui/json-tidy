@@ -229,6 +229,11 @@
     padding: .625rem 0;
   }
 
+  /* A row with a chevron is a row that opens, and its label is the biggest
+     thing on it: the adjacent-sibling selector picks out exactly those rows,
+     since a row without children carries a .chev-gap span instead. */
+  .chev + .content { cursor: pointer; }
+
   .k { color: var(--key); font-weight: 600; }
   .sep { color: var(--muted); }
   .sum { color: var(--muted); }
@@ -931,6 +936,17 @@
       content.appendChild(sum);
     } else {
       content.appendChild(leafSpan(value));
+    }
+    if (openable) {
+      /* The chevron is a 40 px target next to a label several times its
+         width, and the label looked like part of the same control. Clicking
+         it now does what the chevron does -- unless the click ended a drag
+         across the value, which is a selection, not a toggle. */
+      content.addEventListener('click', function () {
+        var sel = window.getSelection ? window.getSelection() : null;
+        if (sel && !sel.isCollapsed) { return; }
+        if (row._kids) { toggle(row); }
+      });
     }
     row.appendChild(content);
 
