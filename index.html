@@ -480,7 +480,15 @@
      their own state, so capture is one pass over the tree; paths are unique
      inside a document (keys are unique, indices are unique), so a path is a
      valid key. The result is held in one variable and consumed by the next
-     successful render. */
+     successful render.
+
+     Collapsing a node hides its children, it does not discard them: the rows
+     stay in the DOM with their own open/closed state intact, and re-opening
+     the parent shows them exactly as they were. So capture records every row
+     the user has ever opened -- how many batches it rendered, and whether it
+     is open right now -- not only the rows that happen to be open. Recording
+     only the open ones would let one collapsed ancestor throw away every
+     expansion beneath it on the next re-parse. */
 
   var savedState = null;
 
@@ -501,13 +509,14 @@
   function captureState() {
     var rows = tree.querySelectorAll('.row');
     if (!rows.length) { return null; }
-    var state = { expanded: Object.create(null), count: 0, chain: null, top: 0 };
+    var state = { nodes: Object.create(null), count: 0, chain: null, top: 0 };
     var anchor = null;
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i];
-      if (row._expanded === true) {
-        state.expanded[row._path] = row._cursor;
-        state.count++;
+      /* A row that was never opened has nothing under it to put back. */
+      if (row._kids && (row._expanded === true || row._cursor > 0)) {
+        state.nodes[row._path] = { cursor: row._cursor, open: row._expanded === true };
+        if (row._expanded === true) { state.count++; }
       }
       /* The scroll anchor is the topmost row still on screen, kept with the
          chain of paths above it so that a document which drops the row itself
@@ -543,17 +552,24 @@
     if (root && root._path !== undefined) { queue.push(root); }
     while (queue.length) {
       var row = queue.shift();
-      var want = state.expanded[row._path];
+      var want = state.nodes[row._path];
       /* A path the new document no longer has -- key deleted, array
          shortened, container replaced by a leaf or now empty -- is dropped
          without comment. The user edited the document; it is not an error. */
       if (want === undefined || !row._chevron) { continue; }
       var total = childCount(row._jsonValue);
-      var target = want < total ? want : total;
+      var target = want.cursor < total ? want.cursor : total;
+      /* renderBatch always advances the cursor by at least one child, so the
+         loop is already bounded by the node's own child count; the counter is
+         a stop against a future renderBatch that could return without
+         advancing, which would otherwise hang the tab. */
       var guard = 0;
       while (row._cursor < target && guard++ < 100000) { renderBatch(row); }
-      if (!row._expanded) { toggle(row); }
-      kept++;
+      /* Restore the row to the state it was left in -- a node the user had
+         closed comes back closed, with everything they had opened inside it
+         still there, ready for the next click. */
+      if (want.open !== row._expanded) { toggle(row); }
+      if (want.open) { kept++; }
       var kids = row._kids.children;
       for (var i = 0; i < kids.length; i++) {
         if (kids[i]._path !== undefined) { queue.push(kids[i]); }
