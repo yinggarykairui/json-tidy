@@ -1240,6 +1240,9 @@
   function tidyClicked() {
     tidyNow({ hard: true, seekPosition: true });
     if (!input.value.trim()) {
+      /* An empty box parses to nothing, so without this a deliberate press
+         is answered with silence -- and the user presses it again. */
+      showMessage('Nothing to tidy — the box is empty.');
       showHint(true);
       input.focus();
     }
