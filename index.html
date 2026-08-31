@@ -437,6 +437,49 @@
     };
   }
 
+  /* ---------- state that survives a re-parse ---------- */
+
+  /* A re-parse used to cost the user everything they had opened. Two
+     mechanisms answer that; this is the first.
+
+     Idempotence: a parse that cannot change the tree does not touch the tree.
+     Both tiers are deliberately conservative -- they may call two equivalent
+     documents different, and must never call two differing documents
+     identical.
+
+     Tier 1 is text identity: identical trimmed text parses to an identical
+     value, so one string compare settles it, and that compare is what catches
+     a stray keystroke or a second press of Tidy.
+
+     Tier 2 is value equivalence. The tree is a pure function of the parsed
+     value and Object.entries order is exactly JSON.stringify order, so equal
+     canonical strings mean row-for-row identical output -- with two values
+     that are lossier through stringify than through the renderer: -0
+     stringifies to 0, and a non-finite number stringifies to null. RISKY
+     skips tier 2 for any text that might hold one. It over-matches (a digit
+     before an e inside a string is enough), and an over-match costs nothing
+     but a rebuild. */
+
+  var lastText = null;
+  var lastCanon = null;
+  var RISKY = /-0|\d[eE]|\d{15}/;
+
+  var UNCHANGED = 'Nothing changed \u2014 the tree is already up to date.';
+
+  function canonical(value) {
+    try { return JSON.stringify(value); } catch (e) { return null; }
+  }
+
+  /* The tree on screen is the last successful parse whenever it is non-empty,
+     so a document that is already rendered needs no work at all. */
+  function unchangedDocument(text, value, canon) {
+    if (lastText === null || !tree.firstChild) { return false; }
+    if (text.trim() === lastText.trim()) { return true; }
+    if (arguments.length < 3 || lastCanon === null || canon === null) { return false; }
+    if (RISKY.test(text) || RISKY.test(lastText)) { return false; }
+    return canon === lastCanon;
+  }
+
   /* ---------- parse ---------- */
 
   function showHint(show) {
@@ -449,17 +492,29 @@
 
   function parseAndRender(text, opts) {
     opts = opts || {};
-    tree.textContent = '';
     if (!text || !text.trim()) {
+      tree.textContent = '';
+      lastText = null;
+      lastCanon = null;
       softError = null;
       clearMessage();
       showHint(true);
+      return;
+    }
+    if (unchangedDocument(text)) {
+      lastText = text;
+      softError = null;
+      showHint(false);
+      /* Only an explicit action gets a line: the debounced typing path would
+         otherwise announce itself on every keystroke. */
+      if (opts.hard) { showMessage(UNCHANGED); } else { clearMessage(); }
       return;
     }
     var value;
     try {
       value = JSON.parse(text);
     } catch (err) {
+      tree.textContent = '';
       var d = describeError(err, text);
       if (!opts.hard && d.incomplete && document.activeElement === input) {
         /* Typing a document produces a parse error on nearly every keystroke.
@@ -486,10 +541,21 @@
       }
       return;
     }
+    var canon = canonical(value);
+    if (unchangedDocument(text, value, canon)) {
+      lastText = text;
+      softError = null;
+      showHint(false);
+      if (opts.hard) { showMessage(UNCHANGED); } else { clearMessage(); }
+      return;
+    }
     softError = null;
     clearMessage();
     showHint(false);
+    tree.textContent = '';
     render(value);
+    lastText = text;
+    lastCanon = canon;
   }
 
   /* ---------- jsonpath ---------- */
