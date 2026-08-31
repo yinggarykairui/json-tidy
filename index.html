@@ -470,6 +470,108 @@
     try { return JSON.stringify(value); } catch (e) { return null; }
   }
 
+  /* The second mechanism: a genuine rebuild, and a parse error that empties
+     the tree, both hand the next successful render what was open. Rows own
+     their own state, so capture is one pass over the tree; paths are unique
+     inside a document (keys are unique, indices are unique), so a path is a
+     valid key. The result is held in one variable and consumed by the next
+     successful render. */
+
+  var savedState = null;
+
+  /* A .kids container always follows the row that owns it, so walking up is
+     one previousElementSibling per level. */
+  function pathChain(row) {
+    var chain = [];
+    var node = row;
+    while (node && node._path !== undefined) {
+      chain.push(node._path);
+      var parent = node.parentNode;
+      if (!parent || parent === tree) { break; }
+      node = parent.previousElementSibling;
+    }
+    return chain;
+  }
+
+  function captureState() {
+    var rows = tree.querySelectorAll('.row');
+    if (!rows.length) { return null; }
+    var state = { expanded: Object.create(null), count: 0, chain: null, top: 0 };
+    var anchor = null;
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (row._expanded === true) {
+        state.expanded[row._path] = row._cursor;
+        state.count++;
+      }
+      /* The scroll anchor is the topmost row still on screen, kept with the
+         chain of paths above it so that a document which drops the row itself
+         can still land the user near where they were. */
+      if (!anchor && row.getBoundingClientRect().bottom > 0) { anchor = row; }
+    }
+    if (anchor) {
+      state.chain = pathChain(anchor);
+      state.top = anchor.getBoundingClientRect().top;
+    }
+    return state;
+  }
+
+  /* Emptying the tree is where state is worth keeping: a rebuild is about to
+     start, or a parse error is about to leave the region blank. */
+  function emptyTree() {
+    if (tree.firstChild) {
+      var state = captureState();
+      if (state) { savedState = state; }
+    }
+    tree.textContent = '';
+  }
+
+  /* Breadth-first from the root, so a parent is rendered before its children
+     are looked for -- that is also what makes the batch counts restorable:
+     the saved cursor is rendered before the node's own children are read.
+     Restoring never renders more rows than the user had already rendered
+     once, so it cannot cost more than the work they already paid for. */
+  function restoreExpanded(state) {
+    var kept = 0;
+    var queue = [];
+    var root = tree.firstElementChild;
+    if (root && root._path !== undefined) { queue.push(root); }
+    while (queue.length) {
+      var row = queue.shift();
+      var want = state.expanded[row._path];
+      /* A path the new document no longer has -- key deleted, array
+         shortened, container replaced by a leaf or now empty -- is dropped
+         without comment. The user edited the document; it is not an error. */
+      if (want === undefined || !row._chevron) { continue; }
+      var total = childCount(row._jsonValue);
+      var target = want < total ? want : total;
+      var guard = 0;
+      while (row._cursor < target && guard++ < 100000) { renderBatch(row); }
+      if (!row._expanded) { toggle(row); }
+      kept++;
+      var kids = row._kids.children;
+      for (var i = 0; i < kids.length; i++) {
+        if (kids[i]._path !== undefined) { queue.push(kids[i]); }
+      }
+    }
+    return kept;
+  }
+
+  function restoreScroll(state) {
+    if (!state.chain) { return; }
+    var byPath = Object.create(null);
+    var rows = tree.querySelectorAll('.row');
+    for (var i = 0; i < rows.length; i++) { byPath[rows[i]._path] = rows[i]; }
+    for (var j = 0; j < state.chain.length; j++) {
+      var row = byPath[state.chain[j]];
+      if (!row) { continue; }
+      /* Synchronous, in the same task as the restore, so there is no jump. */
+      var delta = row.getBoundingClientRect().top - state.top;
+      if (delta) { window.scrollBy(0, delta); }
+      return;
+    }
+  }
+
   /* The tree on screen is the last successful parse whenever it is non-empty,
      so a document that is already rendered needs no work at all. */
   function unchangedDocument(text, value, canon) {
@@ -493,7 +595,10 @@
   function parseAndRender(text, opts) {
     opts = opts || {};
     if (!text || !text.trim()) {
+      /* An empty box is a fresh start: Clear, then a paste of an unrelated
+         document, should not inherit the old document's open nodes. */
       tree.textContent = '';
+      savedState = null;
       lastText = null;
       lastCanon = null;
       softError = null;
@@ -514,7 +619,7 @@
     try {
       value = JSON.parse(text);
     } catch (err) {
-      tree.textContent = '';
+      emptyTree();
       var d = describeError(err, text);
       if (!opts.hard && d.incomplete && document.activeElement === input) {
         /* Typing a document produces a parse error on nearly every keystroke.
@@ -552,10 +657,13 @@
     softError = null;
     clearMessage();
     showHint(false);
-    tree.textContent = '';
-    render(value);
+    emptyTree();
+    var stats = render(value);
     lastText = text;
     lastCanon = canon;
+    if (opts.hard && stats && stats.total > 0) {
+      showMessage('Kept ' + stats.kept + ' of ' + stats.total + ' expanded nodes.');
+    }
   }
 
   /* ---------- jsonpath ---------- */
@@ -961,6 +1069,18 @@
     tree.textContent = '';
     var root = appendNode(tree, '$', value, 0, '$');
     if (root._chevron) { toggle(root); }
+    var state = savedState;
+    savedState = null;
+    if (!state) { return null; }
+    var stats = { kept: 0, total: state.count };
+    /* This runs on nearly every parse, and the tree above is already complete
+       and correct without any of it, so a throw in here degrades to the plain
+       rebuild rather than taking the page down. */
+    try {
+      stats.kept = restoreExpanded(state);
+      restoreScroll(state);
+    } catch (e) { /* keep the rebuilt tree as it stands */ }
+    return stats;
   }
 
   /* ---------- sample ---------- */
