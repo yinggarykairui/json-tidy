@@ -116,7 +116,10 @@
   }
 
   #message {
-    min-height: 1.5rem;
+    /* Tall enough to hold one line without growing (15px x 1.45 plus .25rem
+       of padding), so a message appearing where there was none does not push
+       the tree down and take the reader's scroll position with it. */
+    min-height: 1.75rem;
     margin: 0 0 .75rem;
     padding: .125rem 0 .125rem .625rem;
     border-left: 3px solid transparent;
