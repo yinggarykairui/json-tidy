@@ -622,6 +622,18 @@
 
   function parseAndRender(text, opts) {
     opts = opts || {};
+    /* Load sample and Clear are the one control a lost user reaches for, so
+       they are hard resets rather than ordinary re-parses: no idempotence
+       check can swallow them, and the document arrives in its own canonical
+       root-only form instead of wearing the open nodes of whatever happened
+       to be in the box before. Emptying the tree here rather than through
+       emptyTree() is the point -- there is nothing to carry forward. */
+    if (opts.reset) {
+      tree.textContent = '';
+      savedState = null;
+      lastText = null;
+      lastCanon = null;
+    }
     if (!text || !text.trim()) {
       /* An empty box is a fresh start: Clear, then a paste of an unrelated
          document, should not inherit the old document's open nodes. */
@@ -1223,11 +1235,11 @@
   document.getElementById('tidy').addEventListener('click', tidyClicked);
   document.getElementById('sample').addEventListener('click', function () {
     input.value = SAMPLE;
-    tidyNow();
+    tidyNow({ hard: true, reset: true });
   });
   document.getElementById('clear').addEventListener('click', function () {
     input.value = '';
-    tidyNow();
+    tidyNow({ hard: true, reset: true });
     input.focus();
   });
 
