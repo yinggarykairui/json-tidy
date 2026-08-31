@@ -516,7 +516,10 @@
       /* A row that was never opened has nothing under it to put back. */
       if (row._kids && (row._expanded === true || row._cursor > 0)) {
         state.nodes[row._path] = { cursor: row._cursor, open: row._expanded === true };
-        if (row._expanded === true) { state.count++; }
+        /* Counted for the message, which is about what the user opened: the
+           root opens itself on every document, so it is nobody's choice and
+           belongs in neither half of the count. */
+        if (row._expanded === true && row._depth > 0) { state.count++; }
       }
       /* The scroll anchor is the topmost row still on screen, kept with the
          chain of paths above it so that a document which drops the row itself
@@ -569,7 +572,7 @@
          closed comes back closed, with everything they had opened inside it
          still there, ready for the next click. */
       if (want.open !== row._expanded) { toggle(row); }
-      if (want.open) { kept++; }
+      if (want.open && row._depth > 0) { kept++; }
       var kids = row._kids.children;
       for (var i = 0; i < kids.length; i++) {
         if (kids[i]._path !== undefined) { queue.push(kids[i]); }
@@ -701,8 +704,11 @@
     var stats = render(value);
     lastText = text;
     lastCanon = canon;
+    /* Nothing to report when the user had opened nothing: a count of zero
+       reads as a failure beside a tree that is perfectly correct. */
     if (opts.hard && stats && stats.total > 0) {
-      showMessage('Kept ' + stats.kept + ' of ' + stats.total + ' expanded nodes.');
+      showMessage('Kept ' + stats.kept + ' of ' + stats.total +
+        (stats.total === 1 ? ' expanded node.' : ' expanded nodes.'));
     }
   }
 
