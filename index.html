@@ -600,11 +600,19 @@
   }
 
   /* The tree on screen is the last successful parse whenever it is non-empty,
-     so a document that is already rendered needs no work at all. */
-  function unchangedDocument(text, value, canon) {
-    if (lastText === null || !tree.firstChild) { return false; }
-    if (text.trim() === lastText.trim()) { return true; }
-    if (arguments.length < 3 || lastCanon === null || canon === null) { return false; }
+     so a document that is already rendered needs no work at all. One tier per
+     function: tier 1 is all that is known before the parse, tier 2 needs the
+     parsed value, and both are asked in that order. */
+  function alreadyRendered() {
+    return lastText !== null && !!tree.firstChild;
+  }
+
+  function sameText(text) {
+    return alreadyRendered() && text.trim() === lastText.trim();
+  }
+
+  function sameValue(text, canon) {
+    if (!alreadyRendered() || lastCanon === null || canon === null) { return false; }
     if (RISKY.test(text) || RISKY.test(lastText)) { return false; }
     return canon === lastCanon;
   }
@@ -652,7 +660,7 @@
       showHint(true);
       return;
     }
-    if (unchangedDocument(text)) {
+    if (sameText(text)) {
       lastText = text;
       softError = null;
       showHint(false);
@@ -693,7 +701,7 @@
       return;
     }
     var canon = canonical(value);
-    if (unchangedDocument(text, value, canon)) {
+    if (sameValue(text, canon)) {
       lastText = text;
       softError = null;
       showHint(false);
