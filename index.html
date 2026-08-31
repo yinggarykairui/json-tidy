@@ -475,7 +475,7 @@
      debounce has usually rebuilt the tree already, so by the time Tidy is
      pressed the document may well have changed a moment ago -- a line
      claiming nothing changed would be talking about the wrong moment. */
-  var UNCHANGED = 'The tree already matches the box.';
+  var UNCHANGED = 'Nothing new to parse.';
 
   function canonical(value) {
     try { return JSON.stringify(value); } catch (e) { return null; }

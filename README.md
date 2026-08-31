@@ -8,7 +8,7 @@ Paste JSON, get a collapsible tree, and copy the JSONPath of any node with one c
 
 ## What it does
 
-Paste or type JSON into the box and a collapsible tree appears below it, up to two million characters; past that, press Tidy. The root opens one level, a chevron opens each container under it 200 children at a time, and every row has a button that copies that node's JSONPath. Editing keeps your place: a change that cannot alter the tree leaves the tree alone, and a real edit rebuilds it with the same nodes open, the same batches under them, and roughly the same scroll. Load sample and Clear always start over. Bad input gets a plain-language line under the box with the parser's own message under it, but while you are typing in the box an unfinished document says only that it looks unfinished.
+Paste or type JSON into the box and a collapsible tree appears below it, up to two million characters; past that, press Tidy. The root opens one level, a chevron opens each non-empty container under it 200 children at a time, and every row has a button that copies that node's JSONPath. Editing keeps your place: a change that cannot alter the tree leaves the tree alone, and a real edit rebuilds it with the same nodes open, the same batches under them, and roughly the same scroll. Load sample and Clear always start over. Bad input gets a plain-language line under the box with the parser's own message under it, but while you are typing in the box an unfinished document says only that it looks unfinished.
 
 ## How to run
 
