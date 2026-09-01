@@ -469,16 +469,23 @@
 
      RISKY is a question about the document's numbers, and it is asked of the
      document with its strings taken out. Asked of the raw text it matched
-     any string that happened to contain those characters -- and one ISO
-     timestamp holds `-0` twice, so `"2026-08-11T09:30:00Z"` switched tier 2
-     off for the whole document. That is the bundled sample, and every real
-     payload with a date in it. An over-match costs only a rebuild, so it is
-     the safe direction to be wrong in, but a tier that never fires on the
-     common case is not a tier. Removing the strings first is exact rather
-     than approximate here, because both texts have already parsed as JSON:
-     inside a JSON string the only quote is escaped and a raw newline cannot
-     appear, so the literal is exactly a quote, a run of non-quote and
-     escaped characters, and a quote. */
+     any string that happened to hold those characters -- an ISO date
+     contains `-0` whenever its month or its day starts with a zero, which is
+     300 of 2026's 365 dates, `2026-08-11T09:30:00Z` in the bundled sample
+     among them. One such string switched tier 2 off for the whole document.
+     An over-match costs only a rebuild, so it is the safe direction to be
+     wrong in, but a tier that never fires on the ordinary case is not a
+     tier. Removing the strings first is exact rather than approximate here,
+     because both texts have already parsed as JSON: inside a JSON string the
+     only quote is escaped and a raw newline cannot appear, so the literal is
+     exactly a quote, a run of non-quote and escaped characters, and a quote.
+
+     Still over-conservative on numbers, and measured rather than guessed:
+     `\d{15}` fires at fifteen digits where 309 are needed to overflow to
+     Infinity, so a snowflake id, a nanosecond timestamp and a float printed
+     at full double precision each keep the tier off. Filed on issue #103
+     rather than widened here -- widening this guard is the direction that
+     can be wrong about a document, and it wants its own controls. */
 
   var lastText = null;
   var lastCanon = null;
