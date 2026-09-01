@@ -463,13 +463,37 @@
      canonical strings mean row-for-row identical output -- with two values
      that are lossier through stringify than through the renderer: -0
      stringifies to 0, and a non-finite number stringifies to null. RISKY
-     skips tier 2 for any text that might hold one. It over-matches (a digit
-     before an e inside a string is enough), and an over-match costs nothing
-     but a rebuild. */
+     skips tier 2 for any text that might hold one: `-0` for the first, and
+     `\d[eE]` or a fifteen-digit run for the second, since 1e400 and four
+     hundred nines both parse to Infinity.
+
+     RISKY is a question about the document's numbers, and it is asked of the
+     document with its strings taken out. Asked of the raw text it matched
+     any string that happened to contain those characters -- and one ISO
+     timestamp holds `-0` twice, so `"2026-08-11T09:30:00Z"` switched tier 2
+     off for the whole document. That is the bundled sample, and every real
+     payload with a date in it. An over-match costs only a rebuild, so it is
+     the safe direction to be wrong in, but a tier that never fires on the
+     common case is not a tier. Removing the strings first is exact rather
+     than approximate here, because both texts have already parsed as JSON:
+     inside a JSON string the only quote is escaped and a raw newline cannot
+     appear, so the literal is exactly a quote, a run of non-quote and
+     escaped characters, and a quote. */
 
   var lastText = null;
   var lastCanon = null;
   var RISKY = /-0|\d[eE]|\d{15}/;
+  var STRING_LITERAL = /"(?:[^"\\]|\\.)*"/g;
+
+  /* Emptying the string literals allocates a copy of the document, so it is
+     only paid when the raw text matches at all. That short-circuit is exact,
+     not a heuristic: the quotes stay, so every character the strip removes is
+     interior to a literal, no two characters outside a literal are brought
+     together, and none of RISKY's three alternatives contains a quote. A
+     match after the strip is therefore always a match before it. */
+  function riskyNumbers(text) {
+    return RISKY.test(text) && RISKY.test(text.replace(STRING_LITERAL, '""'));
+  }
 
   /* Says only what is true of the two things in front of the reader. The
      debounce has usually rebuilt the tree already, so by the time Tidy is
@@ -619,10 +643,17 @@
     return alreadyRendered() && jsonTrim(text) === jsonTrim(lastText);
   }
 
+  /* The canonical strings are compared before the RISKY guard is run, which
+     is the same answer for less work: the guard only ever changes a `true`
+     into a `false`, so it has nothing to say about two documents that already
+     canonicalise differently -- and those are almost every pair. A genuine
+     edit pays nothing for the guard; only the pair about to be called
+     identical does. At the two-million-character ceiling that is 34 ms per
+     document against a rebuild an order of magnitude longer. */
   function sameValue(text, canon) {
     if (!alreadyRendered() || lastCanon === null || canon === null) { return false; }
-    if (RISKY.test(text) || RISKY.test(lastText)) { return false; }
-    return canon === lastCanon;
+    if (canon !== lastCanon) { return false; }
+    return !riskyNumbers(text) && !riskyNumbers(lastText);
   }
 
   /* ---------- parse ---------- */
